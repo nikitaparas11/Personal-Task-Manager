@@ -1,4 +1,4 @@
-const API = "http://localhost:3000/api/tasks";
+const API = "https://personal-task-manager-kfzs.onrender.com";
 
 let allTasks = [];
 let currentFilter = "all";
