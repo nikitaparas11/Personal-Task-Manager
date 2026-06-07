@@ -1,5 +1,5 @@
-const API = "https://personal-task-manager-kfzs.onrender.com";
-
+const BASE_URL = "https://personal-task-manager-kfzs.onrender.com";
+const API = `${BASE_URL}/api/tasks`;
 let allTasks = [];
 let currentFilter = "all";
 let editingTaskId = null;
@@ -8,9 +8,7 @@ let editingTaskId = null;
 const taskList = document.getElementById("task-list");
 const counts = document.getElementById("counts");
 const emptyState = document.getElementById("empty");
-
 const toast = document.getElementById("toast");
-
 const editDialog = document.getElementById("edit-dialog");
 const editForm = document.getElementById("edit-form");
 
@@ -18,9 +16,7 @@ const editForm = document.getElementById("edit-form");
 // Toast Notification
 // ======================
 function showToast(message, type = "success") {
-
   toast.textContent = message;
-
   toast.className = `toast show ${type}`;
 
   setTimeout(() => {
@@ -29,83 +25,25 @@ function showToast(message, type = "success") {
 }
 
 // ======================
-// Form Submit
-// ======================
-document
-  .getElementById("new-task-form")
-  .addEventListener("submit", async (e) => {
-
-    e.preventDefault();
-
-    await addTask();
-  });
-
-// ======================
-// Search
-// ======================
-document
-  .getElementById("search")
-  .addEventListener("input", renderTasks);
-
-// ======================
-// Filters
-// ======================
-document
-  .querySelectorAll(".filter")
-  .forEach(button => {
-
-    button.addEventListener("click", () => {
-
-      document
-        .querySelectorAll(".filter")
-        .forEach(btn =>
-          btn.classList.remove("active")
-        );
-
-      button.classList.add("active");
-
-      currentFilter =
-        button.dataset.filter;
-
-      renderTasks();
-    });
-  });
-
-// ======================
 // Load Tasks
 // ======================
 async function loadTasks() {
-
   try {
+    const response = await fetch(API);
 
-    const response =
-      await fetch(API);
+    if (!response.ok) throw new Error("Failed to fetch");
 
-    if (!response.ok) {
-      throw new Error();
-    }
-
-    allTasks =
-      await response.json();
+    allTasks = await response.json();
 
     updateCounts();
-
     renderTasks();
 
   } catch (error) {
-
     console.error(error);
 
-    taskList.innerHTML = `
-      <li class="task">
-        Could not load tasks
-      </li>
-    `;
+    taskList.innerHTML = `<li class="task">Could not load tasks</li>`;
 
-    showToast(
-      "Failed to load tasks",
-      "error"
-    );
+    showToast("Failed to load tasks", "error");
   }
 }
 
@@ -113,64 +51,44 @@ async function loadTasks() {
 // Render Tasks
 // ======================
 function renderTasks() {
-
   let tasks = [...allTasks];
 
-  const searchText =
-    document
-      .getElementById("search")
-      .value
-      .toLowerCase();
+  const searchText = document
+    .getElementById("search")
+    .value
+    .toLowerCase();
 
   if (currentFilter === "active") {
-    tasks =
-      tasks.filter(
-        task => !task.completed
-      );
+    tasks = tasks.filter(t => !t.completed);
   }
 
   if (currentFilter === "completed") {
-    tasks =
-      tasks.filter(
-        task => task.completed
-      );
+    tasks = tasks.filter(t => t.completed);
   }
 
   tasks = tasks.filter(task =>
-    task.title
-      .toLowerCase()
-      .includes(searchText)
+    task.title.toLowerCase().includes(searchText)
   );
 
   taskList.innerHTML = "";
 
   if (tasks.length === 0) {
-
-    emptyState.classList.remove(
-      "hidden"
-    );
-
+    emptyState.classList.remove("hidden");
     return;
   }
 
-  emptyState.classList.add(
-    "hidden"
-  );
+  emptyState.classList.add("hidden");
 
   tasks.forEach(task => {
-
     const overdue =
       task.dueDate &&
       !task.completed &&
-      new Date(task.dueDate) <
-      new Date();
+      new Date(task.dueDate) < new Date();
 
     taskList.innerHTML += `
       <li class="task">
-
         <h3>
-          ${task.completed ? "✅" : "📌"}
-          ${task.title}
+          ${task.completed ? "✅" : "📌"} ${task.title}
         </h3>
 
         ${
@@ -179,131 +97,58 @@ function renderTasks() {
             : ""
         }
 
-        <small
-          style="
-            color:${
-              overdue
-                ? '#ffb347'
-                : '#9aa9bd'
-            };
-            font-weight:${
-              overdue
-                ? 'bold'
-                : 'normal'
-            };
-          "
-        >
-          Due:
-          ${
-            task.dueDate ||
-            "No due date"
-          }
-          ${
-            overdue
-              ? " • Overdue"
-              : ""
-          }
+        <small style="color:${overdue ? "#ffb347" : "#9aa9bd"}">
+          Due: ${task.dueDate || "No due date"}
+          ${overdue ? " • Overdue" : ""}
         </small>
 
         <div class="actions">
+          <button onclick="editTask('${task.id}')">Edit</button>
 
-          <button
-            onclick="editTask('${task.id}')">
-            Edit
+          <button onclick="completeTask('${task.id}', ${!task.completed})">
+            ${task.completed ? "Undo" : "Complete"}
           </button>
 
-          <button
-            onclick="completeTask('${task.id}', ${!task.completed})">
-            ${
-              task.completed
-                ? "Undo"
-                : "Complete"
-            }
-          </button>
-
-          <button
-            class="danger"
-            onclick="deleteTask('${task.id}')">
+          <button class="danger" onclick="deleteTask('${task.id}')">
             Delete
           </button>
-
         </div>
-
       </li>
     `;
   });
 }
-// Count
+
+// ======================
+// Update Counts
+// ======================
 function updateCounts() {
+  const active = allTasks.filter(t => !t.completed).length;
+  const completed = allTasks.filter(t => t.completed).length;
 
-  const active =
-    allTasks.filter(
-      task => !task.completed
-    ).length;
-
-  const completed =
-    allTasks.filter(
-      task => task.completed
-    ).length;
-
-  counts.textContent =
-    `${active} active • ${completed} completed`;
+  counts.textContent = `${active} active • ${completed} completed`;
 }
 
 // ======================
 // Add Task
 // ======================
 async function addTask() {
-
-  const title =
-    document
-      .getElementById("title")
-      .value
-      .trim();
-
-  const description =
-    document
-      .getElementById("description")
-      .value
-      .trim();
-
-  const dueDate =
-    document
-      .getElementById("dueDate")
-      .value;
+  const title = document.getElementById("title").value.trim();
+  const description = document.getElementById("description").value.trim();
+  const dueDate = document.getElementById("dueDate").value;
 
   if (!title) {
-
-    showToast(
-      "Title is required",
-      "error"
-    );
-
+    showToast("Title is required", "error");
     return;
   }
 
   try {
+    const response = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description, dueDate })
+    });
 
-    const response =
-      await fetch(API, {
-
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
-
-        body: JSON.stringify({
-          title,
-          description,
-          dueDate
-        })
-      });
-
-    if (!response.ok) {
-      throw new Error();
-    }
+    if (!response.ok) throw new Error();
 
     document.getElementById("title").value = "";
     document.getElementById("description").value = "";
@@ -311,198 +156,133 @@ async function addTask() {
 
     await loadTasks();
 
-    showToast(
-      "Task added successfully"
-    );
+    showToast("Task added successfully");
 
   } catch (error) {
-
     console.error(error);
-
-    showToast(
-      "Failed to add task",
-      "error"
-    );
+    showToast("Failed to add task", "error");
   }
 }
-// Open Edit Dialog
+
+// ======================
+// Edit Task
+// ======================
 function editTask(id) {
-
-  const task =
-    allTasks.find(
-      t => t.id === id
-    );
-
+  const task = allTasks.find(t => t.id === id);
   if (!task) return;
 
   editingTaskId = id;
 
-  document.getElementById(
-    "edit-title"
-  ).value = task.title;
-
-  document.getElementById(
-    "edit-description"
-  ).value =
-    task.description || "";
-
-  document.getElementById(
-    "edit-dueDate"
-  ).value =
-    task.dueDate || "";
+  document.getElementById("edit-title").value = task.title;
+  document.getElementById("edit-description").value = task.description || "";
+  document.getElementById("edit-dueDate").value = task.dueDate || "";
 
   editDialog.showModal();
 }
+
+// ======================
 // Save Edit
-editForm.addEventListener(
-  "submit",
-  async (e) => {
+// ======================
+editForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-    e.preventDefault();
+  try {
+    const response = await fetch(`${API}/${editingTaskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: document.getElementById("edit-title").value,
+        description: document.getElementById("edit-description").value,
+        dueDate: document.getElementById("edit-dueDate").value
+      })
+    });
 
-    try {
+    if (!response.ok) throw new Error();
 
-      const response =
-        await fetch(
-          `${API}/${editingTaskId}`,
-          {
-            method: "PATCH",
+    editDialog.close();
+    await loadTasks();
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+    showToast("Task updated");
 
-            body: JSON.stringify({
-              title:
-                document.getElementById(
-                  "edit-title"
-                ).value,
-
-              description:
-                document.getElementById(
-                  "edit-description"
-                ).value,
-
-              dueDate:
-                document.getElementById(
-                  "edit-dueDate"
-                ).value
-            })
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error();
-      }
-
-      editDialog.close();
-
-      await loadTasks();
-
-      showToast(
-        "Task updated"
-      );
-
-    } catch (error) {
-
-      console.error(error);
-
-      showToast(
-        "Update failed",
-        "error"
-      );
-    }
+  } catch (error) {
+    console.error(error);
+    showToast("Update failed", "error");
   }
-);
+});
+
+// ======================
 // Delete Task
-
+// ======================
 async function deleteTask(id) {
-
-  const confirmDelete =
-    confirm(
-      "Delete this task?"
-    );
-
-  if (!confirmDelete) return;
+  if (!confirm("Delete this task?")) return;
 
   try {
+    const response = await fetch(`${API}/${id}`, {
+      method: "DELETE"
+    });
 
-    const response =
-      await fetch(
-        `${API}/${id}`,
-        {
-          method: "DELETE"
-        }
-      );
+    if (!response.ok) throw new Error();
 
-    if (!response.ok) {
-      throw new Error();
-    }
+    await loadTasks();
+    showToast("Task deleted");
+
+  } catch (error) {
+    console.error(error);
+    showToast("Delete failed", "error");
+  }
+}
+
+// ======================
+// Complete / Undo Task
+// ======================
+async function completeTask(id, completed) {
+  try {
+    const response = await fetch(`${API}/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed })
+    });
+
+    if (!response.ok) throw new Error();
 
     await loadTasks();
 
     showToast(
-      "Task deleted"
+      completed ? "Task completed" : "Task marked active"
     );
 
   } catch (error) {
-
     console.error(error);
-
-    showToast(
-      "Delete failed",
-      "error"
-    );
+    showToast("Update failed", "error");
   }
 }
 
-// Complete / Undo
-async function completeTask(
-  id,
-  completed
-) {
+// ======================
+// Events
+// ======================
+document.getElementById("new-task-form")
+  .addEventListener("submit", (e) => {
+    e.preventDefault();
+    addTask();
+  });
 
-  try {
+document.getElementById("search")
+  .addEventListener("input", renderTasks);
 
-    const response =
-      await fetch(
-        `${API}/${id}`,
-        {
-          method: "PATCH",
+document.querySelectorAll(".filter")
+  .forEach(button => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".filter")
+        .forEach(btn => btn.classList.remove("active"));
 
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
+      button.classList.add("active");
+      currentFilter = button.dataset.filter;
 
-          body: JSON.stringify({
-            completed
-          })
-        }
-      );
+      renderTasks();
+    });
+  });
 
-    if (!response.ok) {
-      throw new Error();
-    }
-
-    await loadTasks();
-
-    showToast(
-      completed
-        ? "Task completed"
-        : "Task marked active"
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Update failed",
-      "error"
-    );
-  }
-}
-// Initial Load
+// ======================
+// Init
+// ======================
 loadTasks();
