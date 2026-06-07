@@ -115,6 +115,41 @@ button{
   gap:8px;
   transition:.2s;
 }
+.task h3{
+  margin:0;
+  font-size:16px;
+}
+
+.task p{
+  margin:2px 0;
+  font-size:13px;
+  color:var(--muted);
+}
+
+.task small{
+  font-size:12px;
+}
+
+.actions{
+  display:flex;
+  gap:6px;
+  margin-top:4px;
+}
+
+.actions button{
+  padding:4px 8px;
+  font-size:12px;
+  border-radius:6px;
+}
+
+.task-list{
+  list-style:none;
+  padding:15px;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
 
 .task:hover{transform:translateY(-3px)}
 
@@ -178,4 +213,40 @@ menu{
   justify-content:flex-end;
   gap:10px;
   margin-top:12px;
+}
+.actions button{
+  padding:4px 8px;
+  font-size:12px;
+}
+.toast{
+  position:fixed;
+  top:20px;
+  right:20px;
+  background:#222;
+  color:white;
+  padding:12px 18px;
+  border-radius:10px;
+  font-size:14px;
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(-20px);
+  transition:0.3s;
+  z-index:9999;
+}
+
+.toast.show{
+  opacity:1;
+  transform:translateY(10);
+}
+
+.toast.success{
+  background:#28a745;
+}
+
+.toast.error{
+  background:#dc3545;
+}
+
+.toast.info{
+  background:#007bff;
 }
