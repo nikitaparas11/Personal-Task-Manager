@@ -7,12 +7,18 @@ const { randomUUID } = require("crypto");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// --------------------
+// File path (tasks storage)
+// --------------------
 const DATA_FILE = path.join(__dirname, "tasks.json");
 
 // --------------------
 // Middleware
 // --------------------
-app.use(cors());
+app.use(cors({
+  origin: "*"   // allow Vercel frontend to connect
+}));
+
 app.use(express.json());
 
 // --------------------
@@ -23,9 +29,7 @@ function readTasks() {
     if (!fs.existsSync(DATA_FILE)) return [];
 
     const data = fs.readFileSync(DATA_FILE, "utf8");
-    const parsed = JSON.parse(data || "[]");
-
-    return Array.isArray(parsed) ? parsed : [];
+    return JSON.parse(data || "[]");
   } catch (err) {
     console.error("Read error:", err);
     return [];
@@ -48,12 +52,7 @@ function writeTasks(tasks) {
 // --------------------
 app.get("/api/tasks", (req, res) => {
   const tasks = readTasks();
-
-  const sorted = tasks.sort((a, b) => {
-    return (b.order ?? 0) - (a.order ?? 0);
-  });
-
-  res.json(sorted);
+  res.json(tasks);
 });
 
 // --------------------
@@ -76,20 +75,16 @@ app.post("/api/tasks", (req, res) => {
     completed: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    order: tasks.length + 1
   };
 
   tasks.push(newTask);
   writeTasks(tasks);
 
-  res.status(201).json({
-    success: true,
-    data: newTask
-  });
+  res.status(201).json(newTask);
 });
 
 // --------------------
-// UPDATE task (PATCH)
+// UPDATE task
 // --------------------
 app.patch("/api/tasks/:id", (req, res) => {
   const { id } = req.params;
@@ -101,39 +96,18 @@ app.patch("/api/tasks/:id", (req, res) => {
     return res.status(404).json({ error: "Task not found" });
   }
 
-  const { title, description, dueDate, completed, order } = req.body;
+  const { title, description, dueDate, completed } = req.body;
 
-  if (title !== undefined) {
-    if (!title.trim()) {
-      return res.status(400).json({ error: "Title cannot be empty" });
-    }
-    task.title = title.trim();
-  }
-
-  if (description !== undefined) {
-    task.description = description.trim();
-  }
-
-  if (dueDate !== undefined) {
-    task.dueDate = dueDate;
-  }
-
-  if (completed !== undefined) {
-    task.completed = Boolean(completed);
-  }
-
-  if (order !== undefined) {
-    task.order = Number(order);
-  }
+  if (title !== undefined) task.title = title.trim();
+  if (description !== undefined) task.description = description.trim();
+  if (dueDate !== undefined) task.dueDate = dueDate;
+  if (completed !== undefined) task.completed = completed;
 
   task.updatedAt = new Date().toISOString();
 
   writeTasks(tasks);
 
-  res.json({
-    success: true,
-    data: task
-  });
+  res.json(task);
 });
 
 // --------------------
@@ -150,18 +124,15 @@ app.delete("/api/tasks/:id", (req, res) => {
     return res.status(404).json({ error: "Task not found" });
   }
 
-  const deleted = tasks.splice(index, 1);
+  const deleted = tasks.splice(index, 1)[0];
 
   writeTasks(tasks);
 
-  res.json({
-    success: true,
-    data: deleted[0]
-  });
+  res.json(deleted);
 });
 
 // --------------------
-// Root route
+// Health check route
 // --------------------
 app.get("/", (req, res) => {
   res.send("🚀 Task Manager API is running");
@@ -171,5 +142,5 @@ app.get("/", (req, res) => {
 // Start server
 // --------------------
 app.listen(PORT, () => {
-  console.log(`🚀 Task Manager running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
