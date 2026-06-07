@@ -1,81 +1,508 @@
 const API = "http://localhost:3000/api/tasks";
 
-// Load tasks
-async function loadTasks() {
-    const response = await fetch(API);
-    const tasks = await response.json();
+let allTasks = [];
+let currentFilter = "all";
+let editingTaskId = null;
 
-    const taskList = document.getElementById("task-list");
+// Elements
+const taskList = document.getElementById("task-list");
+const counts = document.getElementById("counts");
+const emptyState = document.getElementById("empty");
 
-    taskList.innerHTML = "";
+const toast = document.getElementById("toast");
 
-    tasks.forEach(task => {
-        taskList.innerHTML += `
-        <div class="task">
-            <span class="${task.completed ? 'completed' : ''}">
-                ${task.title}
-            </span>
+const editDialog = document.getElementById("edit-dialog");
+const editForm = document.getElementById("edit-form");
 
-            <div>
-                <button onclick="completeTask('${task.id}', ${!task.completed})">
-                    ${task.completed ? "Undo" : "Complete"}
-                </button>
+// ======================
+// Toast Notification
+// ======================
+function showToast(message, type = "success") {
 
-                <button onclick="deleteTask('${task.id}')">
-                    Delete
-                </button>
-            </div>
-        </div>
-        `;
-    });
+  toast.textContent = message;
+
+  toast.className = `toast show ${type}`;
+
+  setTimeout(() => {
+    toast.className = "toast";
+  }, 2500);
 }
 
-// Add task
-async function addTask() {
-    const title = document.getElementById("taskInput")?.value || 
-                  document.getElementById("title").value;
+// ======================
+// Form Submit
+// ======================
+document
+  .getElementById("new-task-form")
+  .addEventListener("submit", async (e) => {
 
-    if (!title) return;
+    e.preventDefault();
 
-    await fetch(API, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ title })
+    await addTask();
+  });
+
+// ======================
+// Search
+// ======================
+document
+  .getElementById("search")
+  .addEventListener("input", renderTasks);
+
+// ======================
+// Filters
+// ======================
+document
+  .querySelectorAll(".filter")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      document
+        .querySelectorAll(".filter")
+        .forEach(btn =>
+          btn.classList.remove("active")
+        );
+
+      button.classList.add("active");
+
+      currentFilter =
+        button.dataset.filter;
+
+      renderTasks();
     });
+  });
 
-    // clear input safely
-    if (document.getElementById("taskInput")) {
-        document.getElementById("taskInput").value = "";
-    } else {
-        document.getElementById("title").value = "";
+// ======================
+// Load Tasks
+// ======================
+async function loadTasks() {
+
+  try {
+
+    const response =
+      await fetch(API);
+
+    if (!response.ok) {
+      throw new Error();
     }
 
-    loadTasks();
+    allTasks =
+      await response.json();
+
+    updateCounts();
+
+    renderTasks();
+
+  } catch (error) {
+
+    console.error(error);
+
+    taskList.innerHTML = `
+      <li class="task">
+        Could not load tasks
+      </li>
+    `;
+
+    showToast(
+      "Failed to load tasks",
+      "error"
+    );
+  }
 }
 
-// Delete task
-async function deleteTask(id) {
-    await fetch(`${API}/${id}`, {
-        method: "DELETE"
-    });
+// ======================
+// Render Tasks
+// ======================
+function renderTasks() {
 
-    loadTasks();
+  let tasks = [...allTasks];
+
+  const searchText =
+    document
+      .getElementById("search")
+      .value
+      .toLowerCase();
+
+  if (currentFilter === "active") {
+    tasks =
+      tasks.filter(
+        task => !task.completed
+      );
+  }
+
+  if (currentFilter === "completed") {
+    tasks =
+      tasks.filter(
+        task => task.completed
+      );
+  }
+
+  tasks = tasks.filter(task =>
+    task.title
+      .toLowerCase()
+      .includes(searchText)
+  );
+
+  taskList.innerHTML = "";
+
+  if (tasks.length === 0) {
+
+    emptyState.classList.remove(
+      "hidden"
+    );
+
+    return;
+  }
+
+  emptyState.classList.add(
+    "hidden"
+  );
+
+  tasks.forEach(task => {
+
+    const overdue =
+      task.dueDate &&
+      !task.completed &&
+      new Date(task.dueDate) <
+      new Date();
+
+    taskList.innerHTML += `
+      <li class="task">
+
+        <h3>
+          ${task.completed ? "✅" : "📌"}
+          ${task.title}
+        </h3>
+
+        ${
+          task.description
+            ? `<p>${task.description}</p>`
+            : ""
+        }
+
+        <small
+          style="
+            color:${
+              overdue
+                ? '#ffb347'
+                : '#9aa9bd'
+            };
+            font-weight:${
+              overdue
+                ? 'bold'
+                : 'normal'
+            };
+          "
+        >
+          Due:
+          ${
+            task.dueDate ||
+            "No due date"
+          }
+          ${
+            overdue
+              ? " • Overdue"
+              : ""
+          }
+        </small>
+
+        <div class="actions">
+
+          <button
+            onclick="editTask('${task.id}')">
+            Edit
+          </button>
+
+          <button
+            onclick="completeTask('${task.id}', ${!task.completed})">
+            ${
+              task.completed
+                ? "Undo"
+                : "Complete"
+            }
+          </button>
+
+          <button
+            class="danger"
+            onclick="deleteTask('${task.id}')">
+            Delete
+          </button>
+
+        </div>
+
+      </li>
+    `;
+  });
+}
+// Count
+function updateCounts() {
+
+  const active =
+    allTasks.filter(
+      task => !task.completed
+    ).length;
+
+  const completed =
+    allTasks.filter(
+      task => task.completed
+    ).length;
+
+  counts.textContent =
+    `${active} active • ${completed} completed`;
 }
 
-// Toggle complete (FIXED → PATCH)
-async function completeTask(id, completed) {
-    await fetch(`${API}/${id}`, {
-        method: "PATCH",
+// ======================
+// Add Task
+// ======================
+async function addTask() {
+
+  const title =
+    document
+      .getElementById("title")
+      .value
+      .trim();
+
+  const description =
+    document
+      .getElementById("description")
+      .value
+      .trim();
+
+  const dueDate =
+    document
+      .getElementById("dueDate")
+      .value;
+
+  if (!title) {
+
+    showToast(
+      "Title is required",
+      "error"
+    );
+
+    return;
+  }
+
+  try {
+
+    const response =
+      await fetch(API, {
+
+        method: "POST",
+
         headers: {
-            "Content-Type": "application/json"
+          "Content-Type":
+            "application/json"
         },
-        body: JSON.stringify({ completed })
-    });
 
-    loadTasks();
+        body: JSON.stringify({
+          title,
+          description,
+          dueDate
+        })
+      });
+
+    if (!response.ok) {
+      throw new Error();
+    }
+
+    document.getElementById("title").value = "";
+    document.getElementById("description").value = "";
+    document.getElementById("dueDate").value = "";
+
+    await loadTasks();
+
+    showToast(
+      "Task added successfully"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "Failed to add task",
+      "error"
+    );
+  }
+}
+// Open Edit Dialog
+function editTask(id) {
+
+  const task =
+    allTasks.find(
+      t => t.id === id
+    );
+
+  if (!task) return;
+
+  editingTaskId = id;
+
+  document.getElementById(
+    "edit-title"
+  ).value = task.title;
+
+  document.getElementById(
+    "edit-description"
+  ).value =
+    task.description || "";
+
+  document.getElementById(
+    "edit-dueDate"
+  ).value =
+    task.dueDate || "";
+
+  editDialog.showModal();
+}
+// Save Edit
+editForm.addEventListener(
+  "submit",
+  async (e) => {
+
+    e.preventDefault();
+
+    try {
+
+      const response =
+        await fetch(
+          `${API}/${editingTaskId}`,
+          {
+            method: "PATCH",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+              title:
+                document.getElementById(
+                  "edit-title"
+                ).value,
+
+              description:
+                document.getElementById(
+                  "edit-description"
+                ).value,
+
+              dueDate:
+                document.getElementById(
+                  "edit-dueDate"
+                ).value
+            })
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error();
+      }
+
+      editDialog.close();
+
+      await loadTasks();
+
+      showToast(
+        "Task updated"
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      showToast(
+        "Update failed",
+        "error"
+      );
+    }
+  }
+);
+// Delete Task
+
+async function deleteTask(id) {
+
+  const confirmDelete =
+    confirm(
+      "Delete this task?"
+    );
+
+  if (!confirmDelete) return;
+
+  try {
+
+    const response =
+      await fetch(
+        `${API}/${id}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error();
+    }
+
+    await loadTasks();
+
+    showToast(
+      "Task deleted"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "Delete failed",
+      "error"
+    );
+  }
 }
 
-// initial load
+// Complete / Undo
+async function completeTask(
+  id,
+  completed
+) {
+
+  try {
+
+    const response =
+      await fetch(
+        `${API}/${id}`,
+        {
+          method: "PATCH",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            completed
+          })
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error();
+    }
+
+    await loadTasks();
+
+    showToast(
+      completed
+        ? "Task completed"
+        : "Task marked active"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "Update failed",
+      "error"
+    );
+  }
+}
+// Initial Load
 loadTasks();
